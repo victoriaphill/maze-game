@@ -38,6 +38,15 @@
             object-fit: contain;
             aspect-ratio: 1 / 1;
         }
+        #minimapCanvas {
+            position: absolute;
+            top: 70px;
+            right: 70px;
+            border: 2px solid #ffff00;
+            background: #000000;
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+        }
         .ctrl-btn {
             background: transparent;
             border: none;
@@ -113,6 +122,7 @@
         <div id="btnLeft" class="ctrl-btn">◀</div>
         <div id="btnRight" class="ctrl-btn">▶</div>
         <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <canvas id="minimapCanvas" width="150" height="150"></canvas>
 
         <div id="startOverlay">
             <p class="title">🏆 Лабиринт с математикой</p>
@@ -146,17 +156,23 @@
 
         var canvas = document.getElementById('gameCanvas');
         var ctx = canvas.getContext('2d');
+        var minimapCanvas = document.getElementById('minimapCanvas');
+        var minimapCtx = minimapCanvas.getContext('2d');
+
         var cellSize = 20;
         var cols = 30;
         var rows = 30;
 
-        // 3D ре��кастинг параметры
+        // 3D рейкастинг параметры
         var CAMERA_HEIGHT = 20;      // Высота глаз камеры над полом
         var WALL_HEIGHT = 40;         // Высота стен в пикселях
         var FOV = 60;                 // Поле обзора в градусах
         var FOV_RAD = (FOV * Math.PI) / 180; // Преобразование в радианы
         var RENDER_DISTANCE = 500;    // Максимальная дальность рендеринга
         var PROJECTION_CONSTANT = 600; // Константа проекции (подбирается для правильного масштаба)
+
+        // Параметры миникарты
+        var MINIMAP_SCALE = 150 / (cols * cellSize); // Масштаб миникарты
 
         // Карта стен
         var map = [];
@@ -687,6 +703,88 @@
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
             ctx.fillText('← → для поворота, ↑ ↓ для движения', screenWidth / 2, screenHeight - 20);
+
+            // Отрисовка миникарты
+            drawMinimap();
+        }
+
+        // ============================================
+        // РАЗДЕЛ 6.5: МИНИКАРТА
+        // ============================================
+
+        /**
+         * Отрисовка миникарты в верхнем правом углу
+         */
+        function drawMinimap() {
+            // Очищаем миникарту
+            minimapCtx.fillStyle = '#000000';
+            minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+            // Рисуем граничную рамку
+            minimapCtx.strokeStyle = '#ffff00';
+            minimapCtx.lineWidth = 1;
+            minimapCtx.strokeRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+            // Рисуем стены
+            minimapCtx.fillStyle = '#4444ff';
+            for (var r = 0; r < rows; r++) {
+                for (var c = 0; c < cols; c++) {
+                    if (map[r][c] === 1) {
+                        var x = c * cellSize * MINIMAP_SCALE;
+                        var y = r * cellSize * MINIMAP_SCALE;
+                        var size = cellSize * MINIMAP_SCALE;
+                        minimapCtx.fillRect(x, y, size, size);
+                    }
+                }
+            }
+
+            // Рисуем монеты
+            minimapCtx.fillStyle = '#ffd700';
+            for (var i = 0; i < coins.length; i++) {
+                if (coins[i].active) {
+                    var mx = coins[i].col * cellSize * MINIMAP_SCALE + (cellSize * MINIMAP_SCALE) / 2;
+                    var my = coins[i].row * cellSize * MINIMAP_SCALE + (cellSize * MINIMAP_SCALE) / 2;
+                    minimapCtx.beginPath();
+                    minimapCtx.arc(mx, my, 2, 0, Math.PI * 2);
+                    minimapCtx.fill();
+                }
+            }
+
+            // Рисуем финиш
+            minimapCtx.fillStyle = '#ffcc00';
+            var fx = finishCol * cellSize * MINIMAP_SCALE;
+            var fy = finishRow * cellSize * MINIMAP_SCALE;
+            var fsize = cellSize * MINIMAP_SCALE;
+            minimapCtx.fillRect(fx, fy, fsize, fsize);
+
+            // Рисуем врага (красный квадрат)
+            if (!enemy.ghost || enemy.ghostTimer > 0) {
+                minimapCtx.fillStyle = enemy.ghost ? '#ff0000' : '#ff0000';
+                minimapCtx.globalAlpha = enemy.ghost ? 0.4 : 1.0;
+                var ex = (enemy.x / cellSize) * cellSize * MINIMAP_SCALE;
+                var ey = (enemy.y / cellSize) * cellSize * MINIMAP_SCALE;
+                var esize = cellSize * MINIMAP_SCALE;
+                minimapCtx.fillRect(ex - esize / 2, ey - esize / 2, esize, esize);
+                minimapCtx.globalAlpha = 1.0;
+            }
+
+            // Рисуем игрока (зелёный квадрат)
+            minimapCtx.fillStyle = '#00ff00';
+            var px = player.x * MINIMAP_SCALE;
+            var py = player.y * MINIMAP_SCALE;
+            var psize = cellSize * MINIMAP_SCALE;
+            minimapCtx.fillRect(px - psize / 2, py - psize / 2, psize, psize);
+
+            // Рисуем направление взгляда (линия от игрока)
+            minimapCtx.strokeStyle = '#00ff00';
+            minimapCtx.lineWidth = 2;
+            minimapCtx.beginPath();
+            minimapCtx.moveTo(px, py);
+            var lookDist = 30 * MINIMAP_SCALE;
+            var lookX = px + Math.cos(player.angle) * lookDist;
+            var lookY = py + Math.sin(player.angle) * lookDist;
+            minimapCtx.lineTo(lookX, lookY);
+            minimapCtx.stroke();
         }
 
         // ============================================
