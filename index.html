@@ -169,7 +169,7 @@
         var FOV = 60;                 // Поле обзора в градусах
         var FOV_RAD = (FOV * Math.PI) / 180; // Преобразование в радианы
         var RENDER_DISTANCE = 500;    // Максимальная дальность рендеринга
-        var PROJECTION_CONSTANT = 600; // Константа проекции (подбирается для правильного масштаба)
+        var PROJECTION_CONSTANT = 600; // Константа проекции
 
         // Параметры миникарты
         var MINIMAP_SCALE = 150 / (cols * cellSize); // Масштаб миникарты
@@ -195,7 +195,7 @@
             }
         }
 
-        // Стены лабиринта (сдвинутый блок)
+        // Стены лабиринта
         line(3,1, 3,10);
         line(4,6, 11,6);
         line(5,1, 5,4);
@@ -251,7 +251,7 @@
             y: 1 * cellSize + cellSize/2,
             size: cellSize,
             step: cellSize,
-            angle: 0 // Направление взгляда в радианах (0 = смотрит на восток)
+            angle: 0
         };
 
         // Враг
@@ -386,7 +386,7 @@
         }
 
         // ============================================
-        // РАЗДЕЛ 5: ЛОГИКА ИГРЫ (ВРАГ, КОЛЛИЗИИ, ПОБЕДА)
+        // РАЗДЕЛ 5: ЛОГИКА ИГРЫ
         // ============================================
 
         function moveEnemy() {
@@ -573,14 +573,11 @@
 
         /**
          * Райкастинг: отправляем луч от камеры и ищем первое пересечение со стеной.
-         * @param {number} angle - Угол луча в радианах от направления взгляда камеры
-         * @param {number} maxDistance - Максимальная дальность для поиска
-         * @returns {object} {distance, hitX, hitY, wallType}
          */
         function rayCast(angle, maxDistance) {
             var rayX = Math.cos(angle);
             var rayY = Math.sin(angle);
-            var stepSize = 0.5; // Размер шага для поиска пересечения
+            var stepSize = 0.5;
             var distance = 0;
             var hitX, hitY;
 
@@ -604,25 +601,20 @@
                 distance += stepSize;
             }
 
-            // Если ничего не нашли, возвращаем граничное значение
             hitX = player.x + rayX * maxDistance;
             hitY = player.y + rayY * maxDistance;
             return {distance: maxDistance, hitX: hitX, hitY: hitY, wallType: 'none'};
         }
 
         /**
-         * Получить цвет для стены на основе расстояния (туман и затемнение)
-         * @param {number} distance - Расстояние до стены
-         * @returns {string} RGB цвет
+         * Получить цвет для стены с учётом расстояния
          */
         function getWallColor(distance, baseColor) {
-            // Нормализуем расстояние: ближе = ярче, дальше = темнее
             var normalizedDist = Math.min(distance / RENDER_DISTANCE, 1.0);
-            var brightness = 1 - normalizedDist * 0.7; // От 1 (очень ярко) до 0.3 (темно)
+            var brightness = 1 - normalizedDist * 0.7;
 
-            // Если нет цвета, используем синий (стена лабиринта)
             if (!baseColor) {
-                baseColor = {r: 68, g: 68, b: 255}; // #4444ff
+                baseColor = {r: 68, g: 68, b: 255};
             }
 
             var r = Math.floor(baseColor.r * brightness);
@@ -633,72 +625,58 @@
         }
 
         /**
-         * Основная функция 3D рендеринга (рейкастинг)
+         * Основная функция 3D рендеринга
          */
         function draw3D() {
-            // Очищаем canvas
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             var screenWidth = canvas.width;
             var screenHeight = canvas.height;
-            var horizonY = screenHeight / 2; // Горизонт находится посередине (камера смотрит горизонтально)
+            var horizonY = screenHeight / 2;
 
-            // Отправляем лучи для каждого пикселя по горизонтали
+            // Рейкастинг для каждого пикселя экрана
             for (var screenX = 0; screenX < screenWidth; screenX++) {
-                // Вычисляем угол луча для этого пикселя экрана
-                // screenX от 0 до screenWidth должна соответствовать углам от -FOV/2 до +FOV/2
-                var screenXNorm = (screenX / screenWidth) - 0.5; // -0.5 до 0.5
-                var rayAngle = screenXNorm * FOV_RAD; // Угол относительно направления взгляда
-                var absoluteAngle = player.angle + rayAngle; // Абсолютный угол в мировых координатах
+                var screenXNorm = (screenX / screenWidth) - 0.5;
+                var rayAngle = screenXNorm * FOV_RAD;
+                var absoluteAngle = player.angle + rayAngle;
 
-                // Отправляем луч
                 var hit = rayCast(absoluteAngle, RENDER_DISTANCE);
                 var distance = hit.distance;
 
-                // Коррекция для рыбьего глаза (применяем косинус угла для стены)
-                // Это нужно для корректного расчёта расстояния без искажений
                 var correctedDistance = distance * Math.cos(rayAngle);
 
-                // Вычисляем высоту стены на экране по формуле проекции
                 var wallHeightOnScreen = 0;
                 if (correctedDistance > 0) {
                     wallHeightOnScreen = (WALL_HEIGHT / correctedDistance) * PROJECTION_CONSTANT;
                 }
 
-                // Вычисляем y-координаты для рисования стены
                 var wallTopY = horizonY - wallHeightOnScreen / 2;
                 var wallBottomY = horizonY + wallHeightOnScreen / 2;
 
-                // Получаем цвет стены с учётом расстояния
                 var wallColor = getWallColor(correctedDistance, {r: 68, g: 68, b: 255});
 
-                // Рисуем вертикальную полоску стены
                 ctx.fillStyle = wallColor;
                 ctx.fillRect(screenX, Math.max(0, wallTopY), 1, Math.min(screenHeight, wallBottomY - wallTopY));
 
-                // Рисуем пол (под стеной)
                 if (wallBottomY < screenHeight) {
-                    var floorColor = 'rgb(30, 30, 30)';
-                    ctx.fillStyle = floorColor;
+                    ctx.fillStyle = 'rgb(30, 30, 30)';
                     ctx.fillRect(screenX, wallBottomY, 1, screenHeight - wallBottomY);
                 }
 
-                // Рисуем потолок (над стеной)
                 if (wallTopY > 0) {
-                    var ceilingColor = 'rgb(20, 20, 20)';
-                    ctx.fillStyle = ceilingColor;
+                    ctx.fillStyle = 'rgb(20, 20, 20)';
                     ctx.fillRect(screenX, 0, 1, wallTopY);
                 }
             }
 
-            // Отрисовка UI: счётчик монет и инструкции
+            // UI: счётчик монет
             ctx.font = 'bold 18px Arial';
             ctx.fillStyle = '#ffff00';
             ctx.textAlign = 'left';
             ctx.fillText('Монеты: ' + coinsCollected + '/' + totalCoins, 10, 30);
 
-            // Инструкции в центре экрана
+            // Инструкции
             ctx.font = '14px Arial';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
@@ -716,16 +694,15 @@
          * Отрисовка миникарты в верхнем правом углу
          */
         function drawMinimap() {
-            // Очищаем миникарту
             minimapCtx.fillStyle = '#000000';
             minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
-            // Рисуем граничную рамку
+            // Граничная рамка
             minimapCtx.strokeStyle = '#ffff00';
             minimapCtx.lineWidth = 1;
             minimapCtx.strokeRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
-            // Рисуем стены
+            // Стены
             minimapCtx.fillStyle = '#4444ff';
             for (var r = 0; r < rows; r++) {
                 for (var c = 0; c < cols; c++) {
@@ -738,7 +715,7 @@
                 }
             }
 
-            // Рисуем монеты
+            // Монеты
             minimapCtx.fillStyle = '#ffd700';
             for (var i = 0; i < coins.length; i++) {
                 if (coins[i].active) {
@@ -750,16 +727,16 @@
                 }
             }
 
-            // Рисуем финиш
+            // Финиш
             minimapCtx.fillStyle = '#ffcc00';
             var fx = finishCol * cellSize * MINIMAP_SCALE;
             var fy = finishRow * cellSize * MINIMAP_SCALE;
             var fsize = cellSize * MINIMAP_SCALE;
             minimapCtx.fillRect(fx, fy, fsize, fsize);
 
-            // Рисуем врага (красный квадрат)
+            // Враг
             if (!enemy.ghost || enemy.ghostTimer > 0) {
-                minimapCtx.fillStyle = enemy.ghost ? '#ff0000' : '#ff0000';
+                minimapCtx.fillStyle = '#ff0000';
                 minimapCtx.globalAlpha = enemy.ghost ? 0.4 : 1.0;
                 var ex = (enemy.x / cellSize) * cellSize * MINIMAP_SCALE;
                 var ey = (enemy.y / cellSize) * cellSize * MINIMAP_SCALE;
@@ -768,14 +745,14 @@
                 minimapCtx.globalAlpha = 1.0;
             }
 
-            // Рисуем игрока (зелёный квадрат)
+            // Игрок
             minimapCtx.fillStyle = '#00ff00';
             var px = player.x * MINIMAP_SCALE;
             var py = player.y * MINIMAP_SCALE;
             var psize = cellSize * MINIMAP_SCALE;
             minimapCtx.fillRect(px - psize / 2, py - psize / 2, psize, psize);
 
-            // Рисуем направление взгляда (линия от игрока)
+            // Направление взгляда
             minimapCtx.strokeStyle = '#00ff00';
             minimapCtx.lineWidth = 2;
             minimapCtx.beginPath();
@@ -806,12 +783,8 @@
 
         function tryMove(dx, dy) {
             if (!gameActive || mathActive) return false;
-            
-            // dx, dy - это направление движения вперёд/назад (0, -1, 1)
-            // Мы должны двигаться в направлении взгляда игрока
 
-            // Вычисляем новую позицию на основе направления взгляда
-            var moveAngle = player.angle; // Смотрим в направлении angle
+            var moveAngle = player.angle;
             if (dy === -1) {
                 // Движение вперёд
                 var newX = player.x + Math.cos(moveAngle) * player.step;
@@ -822,12 +795,12 @@
                 var newY = player.y - Math.sin(moveAngle) * player.step;
             } else if (dx === -1) {
                 // Поворот влево
-                player.angle -= Math.PI / 8; // Поворот на 22.5 градуса
+                player.angle -= Math.PI / 8;
                 draw3D();
                 return true;
             } else if (dx === 1) {
                 // Поворот вправо
-                player.angle += Math.PI / 8; // Поворот на 22.5 градуса
+                player.angle += Math.PI / 8;
                 draw3D();
                 return true;
             } else {
@@ -865,15 +838,15 @@
         }
 
         // ============================================
-        // РАЗДЕЛ 8: УПРАВЛЕНИЕ КЛАВИАТУРОЙ И КНОПКАМИ
+        // РАЗДЕЛ 8: УПРАВЛЕНИЕ
         // ============================================
 
         document.addEventListener('keydown', function(event) {
             if (!gameActive || mathActive) return;
-            if (event.keyCode === 37) tryMove(-1, 0);     // Левая стрелка - поворот влево
-            else if (event.keyCode === 38) tryMove(0, -1); // Вверх - движение вперёд
-            else if (event.keyCode === 39) tryMove(1, 0);  // Правая стрелка - поворот вправо
-            else if (event.keyCode === 40) tryMove(0, 1);  // Вниз - движение назад
+            if (event.keyCode === 37) tryMove(-1, 0);
+            else if (event.keyCode === 38) tryMove(0, -1);
+            else if (event.keyCode === 39) tryMove(1, 0);
+            else if (event.keyCode === 40) tryMove(0, 1);
         });
 
         document.getElementById('btnUp').addEventListener('pointerdown', function(e) {
@@ -898,9 +871,9 @@
         // ============================================
 
         setInterval(moveEnemy, 333);
-        draw3D(); // Начальная отрисовка
+        draw3D();
 
-        // Экспортируем функцию draw для использования в других местах кода
+        // Функция draw для совместимости
         function draw() {
             draw3D();
         }
