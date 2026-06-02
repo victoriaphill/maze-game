@@ -639,6 +639,9 @@
             var screenHeight = canvas.height;
             var horizonY = screenHeight / 2;
 
+            // Массив для хранения информации о глубине для каждого столбца экрана
+            var columnData = [];
+
             // Рейкастинг для каждого пикселя экрана
             for (var screenX = 0; screenX < screenWidth; screenX++) {
                 var screenXNorm = (screenX / screenWidth) - 0.5;
@@ -649,6 +652,12 @@
                 var distance = hit.distance;
 
                 var correctedDistance = distance * Math.cos(rayAngle);
+
+                // Сохраняем информацию о столбце
+                columnData[screenX] = {
+                    distance: correctedDistance,
+                    angle: absoluteAngle
+                };
 
                 var wallHeightOnScreen = 0;
                 if (correctedDistance > 0) {
@@ -674,6 +683,9 @@
                 }
             }
 
+            // Отрисовка врага в 3D (если в поле зрения)
+            drawEnemy3D(columnData);
+
             // UI: счётчик монет
             ctx.font = 'bold 18px Arial';
             ctx.fillStyle = '#ffff00';
@@ -691,7 +703,116 @@
         }
 
         // ============================================
-        // РАЗДЕЛ 6.5: МИНИКАРТА
+        // РАЗДЕЛ 6.5: РЕНДЕРИНГ ВРАГА В 3D
+        // ============================================
+
+        /**
+         * Отрисовка врага в 3D перспективе
+         */
+        function drawEnemy3D(columnData) {
+            var screenWidth = canvas.width;
+            var screenHeight = canvas.height;
+            var horizonY = screenHeight / 2;
+
+            // Вычисляем позицию врага относительно камеры
+            var enemyRelX = enemy.x - player.x;
+            var enemyRelY = enemy.y - player.y;
+
+            // Вращаем вектор врага в координаты камеры (где направление камеры = 0 градусов)
+            var angleToEnemy = Math.atan2(enemyRelY, enemyRelX);
+            var relativeAngle = angleToEnemy - player.angle;
+
+            // Нормализуем угол в диапазон [-π, π]
+            while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
+            while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
+
+            // Вычисляем расстояние до врага
+            var distanceToEnemy = Math.sqrt(enemyRelX * enemyRelX + enemyRelY * enemyRelY);
+
+            // Корректируем расстояние (компенсируем рыбий глаз)
+            var correctedDistance = distanceToEnemy * Math.cos(relativeAngle);
+
+            // Проверяем, находится ли враг в поле зрения (-FOV_RAD/2 до FOV_RAD/2)
+            if (Math.abs(relativeAngle) > FOV_RAD / 2) {
+                return; // Враг за пределами поля зрения
+            }
+
+            // Проверяем видимость врага через стены (луч-кастинг)
+            var rayX = Math.cos(angleToEnemy);
+            var rayY = Math.sin(angleToEnemy);
+            var testDistance = 0;
+            var isBlocked = false;
+
+            while (testDistance < distanceToEnemy - cellSize) {
+                var testX = player.x + rayX * testDistance;
+                var testY = player.y + rayY * testDistance;
+                var testCol = Math.floor(testX / cellSize);
+                var testRow = Math.floor(testY / cellSize);
+
+                if (testCol >= 0 && testCol < cols && testRow >= 0 && testRow < rows) {
+                    if (map[testRow][testCol] === 1) {
+                        isBlocked = true;
+                        break;
+                    }
+                }
+
+                testDistance += cellSize * 0.5;
+            }
+
+            if (isBlocked) {
+                return; // Враг заблокирован стеной
+            }
+
+            // Вычисляем экранную позицию врага
+            var screenCenterX = screenWidth / 2;
+            var screenXPos = screenCenterX + (relativeAngle / (FOV_RAD / 2)) * (screenWidth / 2);
+
+            // Вычисляем высоту врага на экране (враг имеет примерно такую же высоту, как стена)
+            var enemyHeightOnScreen = 0;
+            if (correctedDistance > 0) {
+                var enemyPixelHeight = cellSize; // Враг = одна клетка в высоту
+                enemyHeightOnScreen = (enemyPixelHeight / correctedDistance) * PROJECTION_CONSTANT;
+            }
+
+            // Вычисляем Y-координаты для отрисовки врага
+            var enemyTopY = horizonY - enemyHeightOnScreen / 2;
+            var enemyBottomY = horizonY + enemyHeightOnScreen / 2;
+
+            // Размер врага по экрану (ширина примерно как высота)
+            var enemyWidthOnScreen = enemyHeightOnScreen * 0.8;
+            var enemyLeftX = screenXPos - enemyWidthOnScreen / 2;
+            var enemyRightX = screenXPos + enemyWidthOnScreen / 2;
+
+            // Проверяем видимость на экране
+            if (enemyRightX < 0 || enemyLeftX >= screenWidth) {
+                return; // Враг вне экрана
+            }
+
+            // Получаем цвет врага с учётом расстояния
+            var brightness = Math.max(0.3, 1 - (correctedDistance / RENDER_DISTANCE) * 0.7);
+            var enemyColor = 'rgb(' + Math.floor(255 * brightness) + ', 0, 0)';
+
+            // Если враг - призрак, делаем его полупрозрачным
+            if (enemy.ghost) {
+                ctx.globalAlpha = 0.5;
+            }
+
+            // Рисуем врага как красный прямоугольник
+            ctx.fillStyle = enemyColor;
+            var drawLeftX = Math.max(0, enemyLeftX);
+            var drawRightX = Math.min(screenWidth, enemyRightX);
+            var drawWidth = drawRightX - drawLeftX;
+            
+            if (drawWidth > 0) {
+                ctx.fillRect(drawLeftX, Math.max(0, enemyTopY), drawWidth, Math.min(screenHeight, enemyBottomY - enemyTopY));
+            }
+
+            // Восстанавливаем прозрачность
+            ctx.globalAlpha = 1.0;
+        }
+
+        // ============================================
+        // РАЗДЕЛ 6.6: МИНИКАРТА
         // ============================================
 
         /**
