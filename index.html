@@ -132,7 +132,7 @@
             <p class="title">🏆 Лабиринт с математикой</p>
             <p class="rules">
                 Собери все <span style="color:#ffd700;">жёлтые монетки</span>, убегая от красного врага.<br>
-                Если враг догонит — реши пример за 5 секунд.<br>
+                Если враг догонит — реши пример за 9 секунд.<br>
                 Правильный ответ сделает врага призраком.<br>
                 Доберись до <span style="color:#ffcc00;">жёлтой клетки</span>, когда все монеты собраны.<br>
                 Управление: стрелки на клавиатуре или кнопки на экране.
@@ -141,7 +141,7 @@
         </div>
 
         <div id="mathOverlay">
-            <p>Реши пример за <span id="timerDisplay">5</span> секунд!</p>
+            <p>Реши пример за <span id="timerDisplay">9</span> секунд!</p>
             <p id="mathProblem"></p>
             <input type="number" id="answerInput" placeholder="Ответ">
             <button id="submitAnswer">OK</button>
@@ -289,7 +289,7 @@
         var gameActive = false;
         var mathActive = false;
         var mathAnswer = 0;
-        var timeLeft = 5;
+        var timeLeft = 9;
         var timerInterval = null;
 
         // ============================================
@@ -461,7 +461,7 @@
                 operation = '÷';
             }
             mathProblem.textContent = a + ' ' + operation + ' ' + b + ' = ?';
-            timeLeft = 5;
+            timeLeft = 9;
             timerDisplay.textContent = timeLeft;
             answerInput.value = '';
             mathOverlay.style.display = 'flex';
@@ -482,7 +482,7 @@
                     clearInterval(timerInterval);
                     failDuel();
                 }
-            }, 5000);
+            }, 9000);
         }
 
         function submitAnswer() {
@@ -997,11 +997,6 @@
 
         setInterval(moveEnemy, 333);
         draw3D();
-
-        // Функция draw для совместимости
-        function draw() {
-            draw3D();
-        }
     </script>
 </body>
 </html>
