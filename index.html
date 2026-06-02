@@ -178,6 +178,13 @@
         // Параметры миникарты
         var MINIMAP_SCALE = 150 / (cols * cellSize); // Масштаб миникарты
 
+        // Загрузка изображения врага
+        var enemyImage = new Image();
+        enemyImage.src = 'face.png';
+        enemyImage.onerror = function() {
+            console.error('Не удалось загрузить face.png');
+        };
+
         // Карта стен
         var map = [];
         for (var r = 0; r < rows; r++) {
@@ -788,23 +795,53 @@
                 return; // Враг вне экрана
             }
 
-            // Получаем цвет врага с учётом расстояния
-            var brightness = Math.max(0.3, 1 - (correctedDistance / RENDER_DISTANCE) * 0.7);
-            var enemyColor = 'rgb(' + Math.floor(255 * brightness) + ', 0, 0)';
-
             // Если враг - призрак, делаем его полупрозрачным
             if (enemy.ghost) {
                 ctx.globalAlpha = 0.5;
             }
 
-            // Рисуем врага как красный прямоугольник
-            ctx.fillStyle = enemyColor;
-            var drawLeftX = Math.max(0, enemyLeftX);
-            var drawRightX = Math.min(screenWidth, enemyRightX);
-            var drawWidth = drawRightX - drawLeftX;
-            
-            if (drawWidth > 0) {
-                ctx.fillRect(drawLeftX, Math.max(0, enemyTopY), drawWidth, Math.min(screenHeight, enemyBottomY - enemyTopY));
+            // Рисуем врага как изображение или красный прямоугольник (fallback)
+            if (enemyImage.complete && enemyImage.naturalHeight !== 0) {
+                // Изображение загружено, рисуем его
+                var drawLeftX = Math.max(0, enemyLeftX);
+                var drawRightX = Math.min(screenWidth, enemyRightX);
+                var drawWidth = drawRightX - drawLeftX;
+                var drawTopY = Math.max(0, enemyTopY);
+                var drawBottomY = Math.min(screenHeight, enemyBottomY);
+                var drawHeight = drawBottomY - drawTopY;
+                
+                if (drawWidth > 0 && drawHeight > 0) {
+                    // Вычисляем соответствующую часть изображения для отрисовки
+                    var srcOffsetLeft = ((drawLeftX - enemyLeftX) / enemyWidthOnScreen) * enemyImage.width;
+                    var srcOffsetTop = ((drawTopY - enemyTopY) / enemyHeightOnScreen) * enemyImage.height;
+                    var srcWidth = (drawWidth / enemyWidthOnScreen) * enemyImage.width;
+                    var srcHeight = (drawHeight / enemyHeightOnScreen) * enemyImage.height;
+                    
+                    ctx.drawImage(
+                        enemyImage,
+                        Math.max(0, srcOffsetLeft),
+                        Math.max(0, srcOffsetTop),
+                        srcWidth,
+                        srcHeight,
+                        drawLeftX,
+                        drawTopY,
+                        drawWidth,
+                        drawHeight
+                    );
+                }
+            } else {
+                // Изображение не загружено, используем красный прямоугольник как fallback
+                var brightness = Math.max(0.3, 1 - (correctedDistance / RENDER_DISTANCE) * 0.7);
+                var enemyColor = 'rgb(' + Math.floor(255 * brightness) + ', 0, 0)';
+                
+                ctx.fillStyle = enemyColor;
+                var drawLeftX = Math.max(0, enemyLeftX);
+                var drawRightX = Math.min(screenWidth, enemyRightX);
+                var drawWidth = drawRightX - drawLeftX;
+                
+                if (drawWidth > 0) {
+                    ctx.fillRect(drawLeftX, Math.max(0, enemyTopY), drawWidth, Math.min(screenHeight, enemyBottomY - enemyTopY));
+                }
             }
 
             // Восстанавливаем прозрачность
